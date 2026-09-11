@@ -1,0 +1,38 @@
+# requirements.txt
+
+# Subdomain enumeration (multi search-engine)
+sublist3r>=1.1
+
+# Email/host/employee OSINT harvesting from search engines
+theHarvester>=4.4.0
+
+# DNS enumeration, zone transfer testing, subdomain brute-forcing
+dnsrecon>=1.1.1
+
+# Shodan API client + CLI (for exposed-service/banner lookups)
+shodan>=1.31.0
+
+# Wayback Machine historical URL lookups (Python fallback if the Go
+# binary `waybackurls` isn't installed)
+waybackpy>=3.0.6
+
+# HTTP requests used by several custom lookups (crt.sh, CDX API, GitHub API)
+requests>=2.31.0
+
+# -----------------------------------------------------------------------------
+# System dependencies (install via apt/brew/etc., NOT pip):
+#
+#   Debian/Ubuntu:
+#     sudo apt install nmap whois dnsutils whatweb gh
+#
+#   macOS (Homebrew):
+#     brew install nmap whois bind whatweb gh
+#
+#   Amass (Go-based, not on PyPI):
+#     sudo apt install amass
+#     # or download a release binary from:
+#     # https://github.com/owasp-amass/amass/releases
+#
+#   waybackurls (Go-based alternative to the waybackpy fallback above):
+#     go install github.com/tomnomnom/waybackurls@latest
+# -----------------------------------------------------------------------------
