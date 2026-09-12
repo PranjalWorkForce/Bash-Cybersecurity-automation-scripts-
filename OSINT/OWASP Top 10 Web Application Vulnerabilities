@@ -1,0 +1,275 @@
+OWASP Top 10 Web Application Vulnerabilities
+
+A01: Broken Access Control: Restrictions on what authenticated users are allowed to do are not properly enforced.
+
+A02: Cryptographic Failures: Failures related to encryption (or lack thereof) leading to sensitive data exposure.
+
+A03: Injection: Flaws like SQL, NoSQL, or OS injection where untrusted data is sent to an interpreter.
+
+A04: Insecure Design: Risks resulting from missing or ineffective security control design in architecture.
+
+A05: Security Misconfiguration: Missing appropriate security hardening across any part of the application stack.
+
+A06: Vulnerable and Outdated Components: Using software components with known vulnerabilities in production.
+
+A07: Identification and Authentication Failures: Weaknesses related to confirming a user's identity or session management.
+
+A08: Software and Data Integrity Failures: Code and infrastructure failing to protect against integrity violations (e.g., untrusted CI/CD or updates).
+
+A09: Security Logging and Monitoring Failures: Insufficient logging and missing integration with incident response.
+
+A10: Server-Side Request Forgery (SSRF): Flaws allowing an application to send crafted requests to an unexpected destination.
+
+
+
+       IN DETAILS 
+
+
+# OWASP Top 10 â€” Detailed Notes & Scanning Methodology
+
+> Reference: OWASP Top 10:2021. For each category below: what it is, common causes, real-world examples, and **how to test/scan for it** (tools + manual technique).
+
+---
+
+## A01: Broken Access Control
+
+**What it is:** Users can act outside their intended permissions â€” viewing/editing other users' data, accessing admin functions, bypassing authorization checks.
+
+**Common causes**
+- Missing server-side authorization checks (relying on hidden UI elements only)
+- Insecure Direct Object References (IDOR) â€” e.g. `/invoice?id=1001` â†’ change to `1002`
+- CORS misconfiguration allowing untrusted origins
+- Force browsing to authenticated/admin pages
+- Elevation of privilege (acting as admin when logged in as a user)
+
+**How to scan/test**
+1. **Manual/proxy-based (primary method):**
+   - Use **Burp Suite** or **OWASP ZAP** to intercept requests.
+   - Log in as two different privilege-level users (low-priv and high-priv). Capture requests from the high-priv session, replay them with the low-priv session's cookies/token ("Authz matrix testing").
+   - Test IDOR by systematically incrementing/decrementing IDs, UUIDs, or changing parameters (`user_id`, `account_id`).
+   - Try accessing admin endpoints directly by URL (`/admin`, `/api/v1/users/all`) while logged in as a normal user.
+2. **Automated tools:**
+   - **Autorize** (Burp extension) â€” automates the "replay with lower-priv session" test across an entire crawl.
+   - **OWASP ZAP** Access Control Testing add-on.
+3. **CORS testing:** Send requests with a modified `Origin` header and check if `Access-Control-Allow-Origin` reflects it with `Access-Control-Allow-Credentials: true`.
+4. Check for missing `X-Frame-Options`/CSP frame-ancestors (clickjacking is a related access-control weakness).
+
+---
+
+## A02: Cryptographic Failures
+
+**What it is:** Sensitive data (passwords, PII, tokens, financial data) exposed due to weak/missing encryption in transit or at rest.
+
+**Common causes**
+- Plaintext HTTP instead of TLS; weak TLS versions/ciphers (SSLv3, TLS 1.0/1.1)
+- Hardcoded encryption keys, weak hashing (MD5/SHA1 for passwords instead of bcrypt/argon2)
+- Sensitive data in URLs, logs, or client-side storage
+- Missing HSTS
+
+**How to scan/test**
+1. **TLS/SSL configuration scanning:**
+   - `testssl.sh` â€” comprehensive TLS scanner (protocols, ciphers, cert issues, known vulns like Heartbleed).
+   - `sslyze` â€” Python-based TLS scanner.
+   - **Qualys SSL Labs** (online, for public-facing hosts) â€” grades configuration Aâ€“F.
+   - `nmap --script ssl-enum-ciphers -p 443 <target>`
+2. **Header checks:** Verify `Strict-Transport-Security`, cookie flags (`Secure`, `HttpOnly`, `SameSite`).
+3. **Manual review:**
+   - Search source code / repos for hardcoded secrets: `gitleaks`, `trufflehog`.
+   - Check password storage: look at DB or code for hashing algorithm used.
+4. **Traffic inspection:** Use Burp/Wireshark to confirm no sensitive data (passwords, tokens, card numbers) travels in plaintext or appears in GET parameters.
+
+---
+
+## A03: Injection
+
+**What it is:** Untrusted input is passed to an interpreter (SQL, NoSQL, LDAP, OS command, ORM) and executed as code/query.
+
+**Common causes**
+- String concatenation to build queries instead of parameterized queries
+- Lack of input validation/output encoding
+- Dynamic OS command construction from user input
+
+**How to scan/test**
+1. **Automated scanning:**
+   - **sqlmap** â€” automated SQL injection detection & exploitation: `sqlmap -u "https://target/page?id=1" --batch --dbs`
+   - **OWASP ZAP** active scan / **Burp Suite Scanner** (Pro) â€” flags injection points automatically.
+   - **NoSQLMap** for NoSQL injection (MongoDB, etc.)
+2. **Manual testing:**
+   - Insert classic payloads into every input (params, headers, cookies, JSON body): `' OR '1'='1`, `"; DROP TABLE users;--`, `\` `, `$ne`, `{"$gt":""}` (NoSQL).
+   - Test time-based blind injection: `' AND SLEEP(5)--` and observe response delay.
+   - Command injection: `; whoami`, `| id`, backticks in fields that shell out (file names, ping utilities).
+3. **Code review:** grep for raw query concatenation (`+ userInput +`), `exec()`, `eval()`, `os.system()` calls with unsanitized input.
+4. Use **Burp Intruder** to fuzz every parameter with an injection payload wordlist (e.g., SecLists `Fuzzing/SQLi`).
+
+---
+
+## A04: Insecure Design
+
+**What it is:** Flaws baked into the architecture/business logic itself â€” not a coding bug, but a missing security control by design (e.g., no rate limiting on password reset, no anti-automation on account creation).
+
+**Common causes**
+- No threat modeling during design phase
+- Missing rate limiting, business-logic abuse (e.g., negative quantity in shopping cart)
+- Trusting client-side validation only
+
+**How to scan/test**
+- This is **not** well-caught by automated scanners â€” mostly manual, logic-driven testing.
+1. **Threat modeling review:** Use **OWASP Threat Dragon** or STRIDE methodology during design/architecture review.
+2. **Business logic abuse testing (manual):**
+   - Try workflows out of order (e.g., skip payment step, replay a "confirm order" request twice).
+   - Test negative/zero values in quantities, prices, discount codes.
+   - Test password reset / account recovery flow for missing rate limits (`ffuf`/`Burp Intruder` to brute force OTPs).
+3. **Rate-limiting/anti-automation checks:** Script repeated requests (`hydra`, custom scripts, or Burp Intruder) against login, signup, and reset endpoints â€” confirm lockout/rate limiting kicks in.
+4. Review architecture diagrams and data flow diagrams against known abuse cases (this is a design review activity, not a scan).
+
+---
+
+## A05: Security Misconfiguration
+
+**What it is:** Insecure default configs, unnecessary features enabled, verbose error messages, missing security headers, unpatched settings across servers/frameworks/cloud.
+
+**Common causes**
+- Default admin credentials left unchanged
+- Directory listing enabled
+- Verbose stack traces exposed to users
+- Unnecessary ports/services/features open
+- Cloud storage (S3 buckets) misconfigured as public
+
+**How to scan/test**
+1. **Automated scanners:**
+   - **Nikto** â€” web server misconfiguration scanner: `nikto -h https://target`
+   - **OWASP ZAP** baseline scan.
+   - **Nessus/OpenVAS** â€” infrastructure-level misconfig & vuln scanning.
+   - **Scout Suite** / **Prowler** â€” cloud misconfiguration (AWS/Azure/GCP), checks for public S3 buckets, open security groups.
+2. **Manual checks:**
+   - Check HTTP response headers: `curl -I https://target` for missing `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`.
+   - Try default credentials on admin panels (`admin/admin`).
+   - Force a 500 error (malformed input) and check if stack traces/paths leak.
+   - Check for exposed `.git/`, `.env`, `/backup`, `phpinfo.php`, directory listing (`gobuster`/`dirsearch` for content discovery).
+3. **Content discovery tools:** `gobuster dir -u https://target -w wordlist.txt`, `ffuf`, `dirsearch` â€” find exposed config/debug endpoints.
+
+---
+
+## A06: Vulnerable and Outdated Components
+
+**What it is:** Using libraries, frameworks, or OS components with known CVEs, or unsupported/EOL versions.
+
+**How to scan/test**
+1. **Software Composition Analysis (SCA):**
+   - **OWASP Dependency-Check** â€” scans project dependencies against the NVD.
+   - **Snyk**, **Trivy** (also scans container images), **Retire.js** (for JS libraries in the browser).
+   - `npm audit` / `pip-audit` / `bundler-audit` â€” language-specific dependency scanners.
+2. **Fingerprinting live sites:**
+   - **Wappalyzer** or **WhatWeb** to identify frameworks/versions in use.
+   - Cross-reference identified versions against **CVE databases** (NVD, Vulners) or `searchsploit`.
+3. **Container/infra scanning:** `Trivy image <image>`, `Grype` for container image CVEs.
+4. Maintain and continuously scan a Software Bill of Materials (SBOM) with tools like `Syft` + `Grype`.
+
+---
+
+## A07: Identification and Authentication Failures
+
+**What it is:** Weaknesses in login, session management, MFA, credential handling that let attackers assume other users' identities.
+
+**Common causes**
+- Weak password policies, no brute-force protection
+- Session IDs exposed in URL, not rotated after login (session fixation)
+- Missing/broken MFA
+- Credential stuffing not mitigated
+
+**How to scan/test**
+1. **Automated brute-force / credential testing (authorized only):**
+   - **Hydra**, **Burp Intruder** â€” test lockout policy and rate limiting on login forms.
+   - Test with breached-password lists (e.g., `rockyou.txt`) to confirm weak password policy is rejected.
+2. **Session management testing:**
+   - Capture session token before and after login â€” confirm it **changes** (no session fixation).
+   - Check cookie attributes: `HttpOnly`, `Secure`, `SameSite`.
+   - Test session timeout and whether logout actually invalidates the token server-side (replay old token after logout).
+3. **MFA bypass testing:** Try skipping the MFA step by directly navigating to the post-login URL; test if MFA codes are rate-limited/brute-forceable.
+4. Tools: **OWASP ZAP** authentication testing add-ons, manual Burp Repeater testing of the auth flow step-by-step.
+
+---
+
+## A08: Software and Data Integrity Failures
+
+**What it is:** Code/infrastructure that doesn't verify integrity of updates, CI/CD pipelines, or serialized data â€” allowing malicious code/data injection (e.g., insecure deserialization, unsigned auto-updates, compromised CI/CD).
+
+**Common causes**
+- Insecure deserialization of untrusted data
+- CI/CD pipelines lacking integrity checks on dependencies/artifacts
+- Auto-update mechanisms without signature verification
+
+**How to scan/test**
+1. **Insecure deserialization testing:**
+   - **ysoserial** â€” generate payloads to test Java deserialization vulnerabilities.
+   - Identify serialized objects (Java, PHP, Python pickle) in traffic (look for `rO0AB` Java magic bytes, PHP `O:` object notation) and test tampering.
+2. **CI/CD pipeline review:**
+   - Audit build pipelines for unpinned/unverified dependency sources, missing artifact signing, and overly broad pipeline permissions.
+   - Tools: **GitLab/GitHub security scanning**, checking for unsigned commits, verifying SLSA/provenance where applicable.
+3. **Subresource Integrity (SRI):** Check that third-party JS/CSS loaded via CDN uses `integrity` attributes.
+4. Manual code review for unsafe deserialization calls (`pickle.loads`, Java `ObjectInputStream`, PHP `unserialize()`).
+
+---
+
+## A09: Security Logging and Monitoring Failures
+
+**What it is:** Insufficient logging, monitoring, and alerting means breaches go undetected for long periods.
+
+**How to scan/test**
+- This is largely a **process/configuration audit**, not something a scanner "finds" directly.
+1. **Test detection capability directly:**
+   - Perform benign test attacks (failed logins, injection payloads, path traversal attempts) and verify they appear in logs/SIEM (Splunk, ELK, Graylog) and trigger alerts.
+2. **Log review checklist:**
+   - Are authentication successes/failures logged? Are logs tamper-proof (write-once, centralized)?
+   - Do logs capture enough context (user ID, IP, timestamp, action) without logging sensitive data (passwords, tokens)?
+3. **Tools:** SIEM correlation rule review, **Wazuh** or **OSSEC** for host-based log monitoring, `auditd` review on Linux servers.
+4. Run a full **incident response tabletop** exercise â€” simulate a breach and time how long it takes to detect via logs.
+
+---
+
+## A10: Server-Side Request Forgery (SSRF)
+
+**What it is:** The server can be tricked into making requests to unintended destinations (internal network, cloud metadata endpoints), often via a URL-fetching feature (image import, webhook, PDF generator).
+
+**Common causes**
+- App fetches a user-supplied URL server-side without validation/allowlisting
+- No network segmentation between app server and internal services/cloud metadata API
+
+**How to scan/test**
+1. **Manual testing (primary method):**
+   - Find features that accept a URL (image upload by URL, "import from link", webhooks, PDF/screenshot generators, XML parsers).
+   - Supply internal/loopback targets: `http://127.0.0.1`, `http://169.254.169.254/latest/meta-data/` (AWS metadata), `http://localhost:PORT`, internal hostnames.
+   - Use **out-of-band detection**: point the URL at a server you control (**Burp Collaborator**, `interact.sh`, or a webhook.site URL) â€” if you receive a callback, SSRF is confirmed even with a blind (no visible response) vulnerability.
+2. **Automated tools:**
+   - **SSRFmap** â€” automates SSRF exploitation once a vulnerable parameter is identified.
+   - **Burp Suite** with Collaborator client for out-of-band detection.
+3. **Bypass technique testing:** Test allowlist bypasses using alternate IP encodings (decimal/octal/hex IP: `http://2130706433/` = 127.0.0.1), DNS rebinding, redirects (`http://attacker.com/redirect-to-internal`), and IPv6 loopback (`http://[::1]`).
+4. Check cloud metadata endpoint accessibility specifically if the app is hosted on AWS/GCP/Azure â€” this is the highest-impact SSRF outcome (credential theft).
+
+---
+
+## General Scanning Workflow (Putting It Together)
+
+| Phase | Tools |
+|---|---|
+| **Recon / fingerprinting** | Wappalyzer, WhatWeb, `nmap`, Shodan |
+| **Content/endpoint discovery** | gobuster, ffuf, dirsearch, Burp Spider |
+| **Automated vulnerability scanning** | OWASP ZAP, Burp Suite Pro, Nikto, Nessus |
+| **Dependency/component scanning** | OWASP Dependency-Check, Snyk, Trivy, Grype |
+| **Manual/business-logic testing** | Burp Suite (Repeater/Intruder), manual auth flow walkthroughs |
+| **Cloud/infra config audit** | Scout Suite, Prowler, CIS benchmarks |
+| **Out-of-band/blind vuln detection** | Burp Collaborator, interact.sh |
+
+**A practical testing methodology** most pentesters follow (aligned with **OWASP Testing Guide** / **PTES**):
+1. Recon & fingerprint the stack.
+2. Automated baseline scan (ZAP/Nikto) to catch low-hanging fruit (A05, A06, A02 headers).
+3. Authenticated crawl with two privilege levels â†’ test A01 (access control) systematically.
+4. Fuzz all input points for A03 (injection) with sqlmap/Intruder.
+5. Manual business-logic and auth-flow testing for A04/A07.
+6. Dependency/SCA scan for A06.
+7. Review CI/CD and serialization handling for A08.
+8. Trigger test events and confirm detection for A09.
+9. Test every URL-accepting feature for A10 with Collaborator-style callbacks.
+
+**Legal note:** Only run these scans/tests against systems you own or have explicit written authorization (e.g., a signed pentest engagement or bug bounty scope) to test â€” unauthorized scanning of third-party systems is illegal in most jurisdictions.
+
