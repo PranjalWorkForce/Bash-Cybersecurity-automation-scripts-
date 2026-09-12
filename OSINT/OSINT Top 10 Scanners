@@ -1,0 +1,217 @@
+# Top Vulnerability Scanners â€” Detailed Notes with Examples
+
+> Note: these are **vulnerability/security scanners**, not OSINT tools per se (OSINT tools gather public information â€” e.g., theHarvester, Maltego, Shodan). The list below covers network, infrastructure, and web-application vulnerability scanners. Details and usage examples for each follow.
+
+---
+
+## 1. Tenable Nessus
+
+**Type:** Commercial (also has a limited free "Essentials" version) network/host vulnerability scanner.
+
+**What it does:** Scans hosts, servers, and network devices against a plugin library (100,000+ plugins) covering missing patches, misconfigurations, malware, compliance benchmarks (CIS, PCI-DSS, HIPAA).
+
+**Strengths:**
+- Extremely large, frequently updated plugin/signature library
+- Strong compliance-auditing templates (PCI, CIS benchmarks)
+- Low false-positive rate compared to many free tools
+
+**Example use case:**
+- A company runs a **Basic Network Scan** policy against its internal `10.0.0.0/24` subnet weekly. Nessus identifies a Windows server missing a critical SMB patch (e.g., mapped to an MS17-010/EternalBlue-style CVE) and flags it as Critical severity with a direct link to the patch and remediation steps.
+- **Example workflow:** Create a scan policy â†’ target IP range â†’ select "Advanced Scan" â†’ enable credentialed scanning (SSH/WinRM credentials) for deeper, more accurate results (credentialed scans check patch levels and installed software directly rather than guessing from network responses) â†’ run â†’ review report grouped by CVSS severity.
+
+---
+
+## 2. Qualys VMDR (Vulnerability Management, Detection & Response)
+
+**Type:** Commercial, cloud-based, agent + agentless platform.
+
+**What it does:** Continuous asset discovery, vulnerability detection, prioritization (using a "Qualys Detection Score"/real-time threat intelligence), and patch orchestration â€” all from a centralized cloud dashboard, ideal for large distributed enterprises and hybrid cloud.
+
+**Strengths:**
+- Continuous (not just point-in-time) scanning via lightweight cloud agents installed on assets
+- Built-in compliance and asset-inventory modules
+- Prioritizes vulnerabilities using real-world exploit-likelihood data, not just CVSS score
+
+**Example use case:**
+- An enterprise deploys the **Qualys Cloud Agent** on 5,000 endpoints (laptops, cloud VMs). Instead of scheduling scans, the agent continuously reports posture back to the Qualys cloud platform.
+- When a new critical CVE is disclosed (e.g., a widely-exploited Apache Log4j-style vulnerability), VMDR automatically flags every affected asset across the entire fleet within minutes and generates a prioritized remediation ticket list, ranked by "real-time threat" indicators (active exploitation in the wild) rather than raw severity alone.
+
+---
+
+## 3. Rapid7 InsightVM
+
+**Type:** Commercial, on-prem/cloud-hybrid vulnerability management platform.
+
+**What it does:** Real-time visibility into vulnerabilities across on-prem and cloud assets, with **Live Dashboards** and deep integration into the **Metasploit** framework for validating exploitability.
+
+**Strengths:**
+- "Live" dynamic dashboards that update as new data comes in (vs. static reports)
+- Direct integration with Metasploit lets a security team validate whether a flagged vulnerability is actually exploitable in their environment, not just theoretically risky
+- Strong risk-scoring model (Real Risk Score) that factors in exploit exposure and malware kits
+
+**Example use case:**
+- InsightVM scans a web server and flags an outdated Apache Struts version as a vulnerability.
+- The security analyst pivots directly from the InsightVM finding into **Metasploit** (via the built-in integration) to attempt a controlled exploit against that specific finding in a test environment, confirming real exploitability before prioritizing an emergency patch â€” turning a scanner alert into validated proof of risk.
+
+---
+
+## 4. OpenVAS (Greenbone Vulnerability Management)
+
+**Type:** Free and open-source (community edition), with a paid "Greenbone Enterprise" tier.
+
+**What it does:** Full vulnerability scanning and management framework â€” network scanning, a feed of Network Vulnerability Tests (NVTs), reporting, and a web UI (Greenbone Security Assistant).
+
+**Strengths:**
+- No license cost â€” good for small businesses, students, and labs
+- Regularly updated public feed of vulnerability tests
+- Self-hosted, so all scan data stays in-house
+
+**Example use case:**
+```bash
+# Typical OpenVAS/Greenbone workflow (via CLI, gvm-tools)
+# 1. Create a target
+gvm-cli socket --xml "<create_target><name>Lab-Server</name><hosts>192.168.1.50</hosts></create_target>"
+
+# 2. Create and launch a scan task against that target using the default "Full and fast" scan config
+# 3. Review results in the Greenbone Security Assistant web UI
+```
+- A home lab or small IT team installs OpenVAS on a dedicated VM, scans their internal file server, and finds an outdated OpenSSH version â€” the report links directly to the relevant CVE and suggested fix, at zero licensing cost.
+
+---
+
+## 5. Acunetix
+
+**Type:** Commercial, automated **DAST** (Dynamic Application Security Testing) â€” specifically web-application focused.
+
+**What it does:** Crawls and actively tests web applications and APIs for vulnerabilities, with strong out-of-the-box detection specifically tuned to the OWASP Top 10 (SQLi, XSS, misconfig, outdated components, etc.).
+
+**Strengths:**
+- Very low false-positive rate for high-risk web vulns thanks to "proof-based" scanning (it attempts to safely prove exploitability rather than just flag patterns)
+- Good coverage of modern JavaScript-heavy single-page applications (SPAs)
+- Built-in compliance reporting (PCI-DSS mapping)
+
+**Example use case:**
+- A dev team points Acunetix at their staging e-commerce site (`https://staging.shop.example.com`). It crawls every page/form, then tests the checkout form's "promo code" field, and reports a confirmed SQL injection vulnerability (A03) with the exact payload used and a proof-of-concept showing extracted database version info â€” letting the team fix it before the site goes to production.
+
+---
+
+## 6. Burp Suite
+
+**Type:** Commercial (Professional/Enterprise) with a limited free Community edition â€” the industry-standard **manual + semi-automated** web app testing platform.
+
+**What it does:** An intercepting proxy plus a full toolkit (Repeater, Intruder, Scanner, Sequencer, Comparer, Collaborator) used by penetration testers to manually probe and automate testing of web applications.
+
+**Strengths:**
+- Unmatched flexibility for **manual** testing â€” intercept, modify, and replay any HTTP(S) request
+- **Intruder** for custom fuzzing campaigns; **Repeater** for iterative manual payload testing; **Collaborator** for out-of-band/blind vulnerability detection (e.g., blind SSRF)
+- Huge ecosystem of community-built extensions (BApp Store) â€” e.g., Autorize (access control testing), Turbo Intruder
+
+**Example use case:**
+- A pentester intercepts a login request in Burp's proxy, sends it to **Repeater**, and manually tweaks the `username` parameter with a single quote (`'`) to test for SQL injection â€” observing the server's error response change confirms the app is vulnerable.
+- Separately, they load a list of usernames into **Intruder**, set the "payload position" on the password field with a common-password wordlist, and run a controlled brute-force test against a staging login endpoint (with authorization) to confirm the app lacks account lockout (A07).
+
+---
+
+## 7. OWASP ZAP (Zed Attack Proxy)
+
+**Type:** Free, open-source â€” maintained under the OWASP umbrella, positioned as the free alternative/entry point to Burp Suite.
+
+**What it does:** Intercepting proxy + automated active/passive scanner, designed to be integrated into the SDLC (developers running it themselves, not just security teams) and into CI/CD pipelines.
+
+**Strengths:**
+- Completely free and scriptable â€” great for developers and small teams without a Burp Pro license
+- Has both a GUI (Desktop) and a **headless/CLI mode** perfect for automation
+- Passive scanning happens automatically as you browse the app (no active attack needed) â€” good early warning with zero risk
+
+**Example use case:**
+```bash
+# Running a ZAP baseline scan in a CI pipeline (headless, Docker)
+docker run -t owasp/zap2docker-stable zap-baseline.py \
+  -t https://staging.example.com \
+  -r zap_report.html
+```
+- A dev team adds this ZAP baseline scan as a step in their GitHub Actions pipeline. On every pull request to staging, ZAP passively crawls the app and fails the build if it detects missing security headers or newly introduced reflected XSS â€” catching issues before they reach production.
+
+---
+
+## 8. Nmap
+
+**Type:** Free, open-source â€” the foundational **network discovery/port-scanning** tool (not a full vulnerability scanner by itself, but extensible via the **Nmap Scripting Engine, NSE**).
+
+**What it does:** Discovers live hosts, open ports, running services and versions, and OS fingerprints. With NSE scripts, it can also detect specific known vulnerabilities.
+
+**Strengths:**
+- Universal starting point for almost any security assessment â€” extremely fast and reliable
+- NSE scripts extend it into a lightweight vulnerability scanner (`vuln` category scripts)
+- Scriptable and easily automated/pipelined into other tools
+
+**Example use case:**
+```bash
+# Basic host/service discovery
+nmap -sV -p- 192.168.1.0/24
+
+# Run NSE vulnerability-detection scripts against a target
+nmap --script vuln 192.168.1.50
+
+# Check specifically for a known SMB vulnerability
+nmap --script smb-vuln-ms17-010 -p445 192.168.1.50
+```
+- A security team runs a network-wide Nmap scan to build an asset inventory (what's alive, what ports/services are exposed), then follows up with the `vuln` NSE script category on any host running outdated-looking services to flag likely known CVEs before handing the list off to Nessus/OpenVAS for deeper analysis.
+
+---
+
+## 9. Intruder
+
+**Type:** Commercial, cloud-based SaaS vulnerability scanner (unrelated to Burp's "Intruder" tool â€” same name, different product).
+
+**What it does:** Continuous external/internal attack-surface monitoring targeted at small-to-mid-sized businesses that don't have a dedicated security team â€” simplifies vulnerability scanning into an easy dashboard with prioritized, jargon-light reporting.
+
+**Strengths:**
+- Very low setup/operational overhead â€” designed for non-security-specialist IT staff
+- Automatically re-scans when new threats are disclosed ("Emerging Threat Scans") without waiting for the next scheduled scan
+- Clear, prioritized reporting aimed at business decision-makers, not just technical teams
+
+**Example use case:**
+- A 50-person SaaS startup with no in-house security engineer connects Intruder to their public IP ranges and cloud accounts. When a major new CVE breaks in the news, Intruder automatically triggers an "Emerging Threat" scan across all monitored assets overnight and emails the IT manager a plain-English summary the next morning: which specific servers are affected and the exact steps to patch them.
+
+---
+
+## 10. StackHawk
+
+**Type:** Commercial, **DAST built specifically for DevSecOps/CI-CD pipelines**.
+
+**What it does:** Runs automated dynamic application security scans directly inside the CI/CD pipeline (GitHub Actions, GitLab CI, CircleCI, Jenkins) against every build, using a simple YAML config, and reports findings straight back to developers as pipeline-native output (not a separate security dashboard they have to check).
+
+**Strengths:**
+- Built "API-first" â€” strong support for scanning REST/GraphQL APIs, not just traditional web UIs
+- Config-as-code (`stackhawk.yml`) fits naturally into existing developer workflows
+- Designed to fail builds automatically on newly introduced high-severity issues, shifting security left
+
+**Example use case:**
+```yaml
+# Example stackhawk.yml
+app:
+  applicationId: ${HAWK_APP_ID}
+  env: Development
+  host: http://localhost:8080
+```
+- A team adds StackHawk as a job in their GitLab CI pipeline. Every time a developer pushes code, StackHawk spins up, scans the running application/API for issues like broken auth or injection flaws, and comments directly on the merge request if it finds a new high-severity issue â€” blocking the merge until it's fixed, rather than catching it in a quarterly pentest months later.
+
+---
+
+## Quick Comparison Table
+
+| Tool | Type | Best For | Cost |
+|---|---|---|---|
+| Nessus | Network/host scanner | Deep infra vuln + compliance audits | Commercial (free Essentials tier) |
+| Qualys VMDR | Cloud VM platform | Large-scale continuous asset risk mgmt | Commercial |
+| Rapid7 InsightVM | VM platform | Exploit validation via Metasploit | Commercial |
+| OpenVAS/Greenbone | Network scanner | Budget-conscious/self-hosted vuln mgmt | Free / paid enterprise tier |
+| Acunetix | Web DAST | Automated, low-FP web app scanning | Commercial |
+| Burp Suite | Web testing platform | Manual/expert pentesting | Free (limited) / Commercial |
+| OWASP ZAP | Web DAST | Free dev-friendly, CI/CD integration | Free |
+| Nmap | Network mapper | Recon, asset/service discovery | Free |
+| Intruder | Cloud scanner | Simple, low-maintenance SMB scanning | Commercial |
+| StackHawk | API/DAST for CI/CD | Shift-left security in pipelines | Commercial |
+
+**Note:** As with any scanning tool, only run these against assets you own or are explicitly authorized to test.
