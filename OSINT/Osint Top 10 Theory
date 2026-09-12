@@ -1,4 +1,4 @@
-# OSINT Top 10 â€” Theory Notes
+# OSINT Top 10  Theory Notes
 
 Study notes on the concepts behind open-source intelligence (OSINT)
 gathering, framed around the ten source categories covered earlier.
@@ -10,7 +10,7 @@ Focused on the "why" and "how it works" rather than tool usage.
 
 **Open Source Intelligence (OSINT)** is the practice of collecting and
 analyzing information from publicly available sources to produce
-actionable intelligence about a target â€” a person, organization, domain,
+actionable intelligence about a target a person, organization, domain,
 or system.
 
 **"Open source" here means "publicly accessible," not "open-source software."**
@@ -25,16 +25,16 @@ Sources include:
 - Data breaches that have become public
 
 ### Core principle: passive vs. active recon
-- **Passive** â€” you never send traffic to (or interact with) the target
+- **Passive** you never send traffic to (or interact with) the target
   itself. You query third parties who already hold data about the target
   (WHOIS registries, certificate transparency logs, search engines,
   archives). The target has no way of knowing you looked.
-- **Active** â€” you interact directly with the target's systems (port
+- **Active** you interact directly with the target's systems (port
   scanning, sending crafted requests, brute-forcing subdomains via DNS
   queries to their nameservers). This can be logged, detected, or
   blocked by the target.
 
-Most of the "Top 10" list leans passive by design â€” that's what makes it
+Most of the "Top 10" list leans passive by design that's what makes it
 usable early in an assessment, before authorization for active testing is
 even needed in many contexts (though scope/legality still matters).
 
@@ -44,11 +44,11 @@ even needed in many contexts (though scope/legality still matters).
 
 A standard intelligence cycle applied to OSINT work:
 
-1. **Planning / direction** â€” define what you actually need to know and why (a domain's attack surface? a person's public footprint? a company's vendor relationships?)
-2. **Collection** â€” pull raw data from sources (this is what tools like Sublist3r, theHarvester, etc. automate)
-3. **Processing** â€” normalize/deduplicate raw data (e.g., merging subdomain lists from five sources into one clean list)
-4. **Analysis** â€” turn raw data into meaning (which subdomains look like forgotten dev/staging environments? which employee emails suggest an org chart?)
-5. **Dissemination** â€” turn analysis into a report or actionable next step
+1. **Planning / direction** ” define what you actually need to know and why (a domain's attack surface? a person's public footprint? a company's vendor relationships?)
+2. **Collection** ” pull raw data from sources (this is what tools like Sublist3r, theHarvester, etc. automate)
+3. **Processing** ” normalize/deduplicate raw data (e.g., merging subdomain lists from five sources into one clean list)
+4. **Analysis** ” turn raw data into meaning (which subdomains look like forgotten dev/staging environments? which employee emails suggest an org chart?)
+5. **Dissemination** ” turn analysis into a report or actionable next step
 
 A script that just dumps ten tools' raw output (like the one built
 earlier) automates steps 2â€“3. Steps 1, 4, and 5 are still human work â€”
@@ -59,7 +59,7 @@ doesn't (by itself) produce intelligence.**
 
 ## 3. Theory behind each of the Top 10 categories
 
-### 3.1 WHOIS â€” registry data
+### 3.1 WHOIS ” registry data
 Domain registration is a contractual record kept by registrars and
 published (partially) via the WHOIS protocol (RFC 3912) and, increasingly,
 RDAP (Registration Data Access Protocol), which is replacing WHOIS as the
@@ -77,11 +77,11 @@ person directly.
 DNS is a distributed, hierarchical, publicly-queryable database mapping
 names to resources. Each record type theoretically reveals something
 different:
-- **A/AAAA** â€” where a service is actually hosted (IP â†’ often reveals hosting provider/cloud region)
-- **MX** â€” mail provider (Google Workspace? Microsoft 365? self-hosted?)
-- **NS** â€” who manages DNS (can reveal a CDN/DNS provider like Cloudflare)
-- **TXT** â€” often contains SPF/DKIM/DMARC (email security posture) or domain-verification strings for third-party services (which reveals what SaaS tools an org uses)
-- **SOA** â€” administrative contact and refresh/retry timing metadata
+- **A/AAAA**  where a service is actually hosted (IP  often reveals hosting provider/cloud region)
+- **MX** mail provider (Google Workspace? Microsoft 365? self-hosted?)
+- **NS**  who manages DNS (can reveal a CDN/DNS provider like Cloudflare)
+- **TXT**  often contains SPF/DKIM/DMARC (email security posture) or domain-verification strings for third-party services (which reveals what SaaS tools an org uses)
+- **SOA** administrative contact and refresh/retry timing metadata
 
 **Zone transfers (AXFR)** are the classic DNS misconfiguration: if a
 nameserver allows an unauthenticated transfer, an attacker can pull the
